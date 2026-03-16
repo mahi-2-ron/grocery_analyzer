@@ -54,9 +54,16 @@ interface AnalysisResult {
 }
 
 const App: React.FC = () => {
+  // Prioritize the hardcoded key if nothing is set or if it's an old placeholder
+  const getDefaultKey = () => {
+    const saved = localStorage.getItem('GEMINI_API_KEY');
+    if (!saved || saved.length < 10) return 'AIzaSyBItLUxARnmvTJf5E6agjlFVQoFIBRXbw0';
+    return saved;
+  };
+
   const [screen, setScreen] = useState<'home' | 'manual' | 'result' | 'settings'>('home');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [apiKey, setApiKey] = useState<string>(localStorage.getItem('GEMINI_API_KEY') || 'AIzaSyBItLUxARnmvTJf5E6agjlFVQoFIBRXbw0');
+  const [apiKey, setApiKey] = useState<string>(getDefaultKey());
   const [manualText, setManualText] = useState<string>('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [activeIng, setActiveIng] = useState<IngredientDetail | null>(null);
@@ -85,66 +92,62 @@ const App: React.FC = () => {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Using 'gemini-1.5-flash' which is the standard name
+      // 'gemini-1.5-flash' or 'gemini-1.5-flash-latest'
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
         ACT AS A PROFESSIONAL NUTRITIONIST AND TOXICOLOGIST.
-        Analyze the provided food ingredients (from text or image). 
+        Analyze the food ingredients provided.
         
-        TASKS:
-        1. Identify the product name.
-        2. Extract ALL ingredients.
-        3. Identify metabolic RISKS, categories, and safety concerns.
-        4. Calculate a HEALTH SCORE (0 to 100).
-        5. Suggest 2-3 healthier alternatives.
+        TASK:
+        1. Identify Product Name
+        2. Extract all ingredients and their Health Risks (Low, Moderate, High)
+        3. Assign a Health Score (0-100)
+        4. Provide detailed Biological Impact for controversial ingredients
+        5. Suggest 2-3 healthier alternatives
         
-        RULES:
-        - If ingredients are missing, tell the user to provide a clear photo.
-        - Be scientifically accurate but easy to understand.
-        
-        RETURN ONLY A JSON OBJECT:
+        RETURN ONLY A PURE JSON OBJECT (NO MARKDOWN BLOCKS):
         {
           "productName": "string",
           "score": number,
           "detectedIngredients": [
             {
               "name": "string",
-              "category": "Preservative | Sweetener | Colorant | Emulsifier | Natural | Industrial",
+              "category": "string",
               "risk": "Low | Moderate | High",
-              "description": "Short explanation",
-              "impact": "Biological impact",
-              "usedFor": "Purpose in food",
-              "dailyLimit": "Recommended limit"
+              "description": "string",
+              "impact": "string",
+              "usedFor": "string",
+              "dailyLimit": "string"
             }
           ],
-          "recommendation": "Final summary recommendation",
-          "alternatives": ["Alternative name 1", "Alternative name 2"],
+          "recommendation": "string",
+          "alternatives": ["string"],
           "stats": { "preservatives": number, "sugars": number, "colors": number, "others": number }
         }
       `;
 
       let result;
       if (base64Image) {
-        const imagePart = {
-          inlineData: {
-            data: base64Image.split(',')[1],
-            mimeType: "image/jpeg"
-          }
-        };
-        result = await model.generateContent([prompt, imagePart]);
+        result = await model.generateContent([
+          prompt,
+          { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } }
+        ]);
       } else {
-        result = await model.generateContent([prompt, { text: `Ingredients to analyze: ${text}` }]);
+        result = await model.generateContent([prompt, `Ingredients: ${text}`]);
       }
+
       const response = await result.response;
-      const jsonText = response.text().replace(/```json|```/gi, "").trim();
-      const parsed = JSON.parse(jsonText) as AnalysisResult;
-      
+      const responseText = response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("AI returned invalid data format. Please try again.");
+
+      const parsed = JSON.parse(jsonMatch[0]) as AnalysisResult;
       setResult(parsed);
       setScreen('result');
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to analyze. Check your API key or connection.");
+      console.error("Analysis Error:", err);
+      setError(`AI Error: ${err.message || 'Unknown error occurred'}`);
     } finally {
       setIsAnalyzing(false);
     }
