@@ -90,20 +90,19 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     setError(null);
 
-    try {
+    const performAiCall = async (modelName: string) => {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 'gemini-1.5-flash' or 'gemini-1.5-flash-latest'
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: modelName });
 
       const prompt = `
         ACT AS A PROFESSIONAL NUTRITIONIST AND TOXICOLOGIST.
-        Analyze the food ingredients provided.
+        Analyze the food ingredients provided (from text or image).
         
         TASK:
         1. Identify Product Name
         2. Extract all ingredients and their Health Risks (Low, Moderate, High)
         3. Assign a Health Score (0-100)
-        4. Provide detailed Biological Impact for controversial ingredients
+        4. Provide Biological Impact for controversial ingredients
         5. Suggest 2-3 healthier alternatives
         
         RETURN ONLY A PURE JSON OBJECT (NO MARKDOWN BLOCKS):
@@ -127,27 +126,43 @@ const App: React.FC = () => {
         }
       `;
 
-      let result;
       if (base64Image) {
-        result = await model.generateContent([
+        const result = await model.generateContent([
           prompt,
           { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } }
         ]);
+        return result.response;
       } else {
-        result = await model.generateContent([prompt, `Ingredients: ${text}`]);
+        const result = await model.generateContent([prompt, `Ingredients list: ${text}`]);
+        return result.response;
+      }
+    };
+
+    try {
+      let response;
+      try {
+        // Try Flash first (faster, cheaper)
+        response = await performAiCall("gemini-1.5-flash");
+      } catch (flashErr: any) {
+        console.warn("Flash model failed, trying Pro fallback...", flashErr);
+        if (flashErr.message?.includes("404") || flashErr.message?.includes("not found")) {
+          // Fallback to Pro
+          response = await performAiCall("gemini-1.5-pro");
+        } else {
+          throw flashErr;
+        }
       }
 
-      const response = await result.response;
       const responseText = response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI returned invalid data format. Please try again.");
+      if (!jsonMatch) throw new Error("AI failed to generate a valid nutritional report. Please try again with a clearer list.");
 
       const parsed = JSON.parse(jsonMatch[0]) as AnalysisResult;
       setResult(parsed);
       setScreen('result');
     } catch (err: any) {
-      console.error("Analysis Error:", err);
-      setError(`AI Error: ${err.message || 'Unknown error occurred'}`);
+      console.error("Critical Analysis Error:", err);
+      setError(`Lab Error: ${err.message || 'The AI is currently busy. Please try manual entry.'}`);
     } finally {
       setIsAnalyzing(false);
     }
