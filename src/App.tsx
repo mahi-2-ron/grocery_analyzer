@@ -4,28 +4,12 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   Camera, 
   ChevronLeft, 
-  AlertCircle, 
-  CheckCircle2, 
-  Search, 
-  History, 
-  User, 
-  Scan, 
   ChevronRight,
-  ShieldCheck,
-  Zap,
-  Leaf,
-  Barcode,
   X,
-  Target,
-  Upload,
-  AlertTriangle,
-  Activity,
   FileText,
   Loader2,
-  Trash2,
   RotateCcw,
   Key,
-  Sparkles,
   Cpu
 } from 'lucide-react';
 
@@ -71,6 +55,8 @@ const App: React.FC = () => {
     return saved;
   };
 
+  const [apiProvider, setApiProvider] = useState<'gemini' | 'deepseek'>(localStorage.getItem('API_PROVIDER') as any || 'gemini');
+  const [deepseekKey, setDeepseekKey] = useState<string>(localStorage.getItem('DEEPSEEK_API_KEY') || '');
   const [screen, setScreen] = useState<'home' | 'manual' | 'result' | 'settings'>('home');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [apiKey, setApiKey] = useState<string>(getDefaultKey());
@@ -82,10 +68,75 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
+   * DeepSeek Analysis Engine
+   */
+  const analyzeWithDeepSeek = async (text: string) => {
+    if (!deepseekKey) {
+      setError("Please add your DeepSeek API Key in Settings.");
+      setScreen('settings');
+      return;
+    }
+
+    try {
+      const response = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${deepseekKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [
+            { role: "system", content: "You are a professional nutritionist. Analyze food ingredients and return only a JSON object." },
+            { role: "user", content: `Analyze these ingredients and return a JSON object with this structure: {productName, score: number(0-100), detectedIngredients: [{name, category, risk, description, impact, usedFor, dailyLimit}], recommendation, alternatives: [], stats: {preservatives, sugars, colors, others}}. Ingredients: ${text}` }
+          ],
+          response_format: { type: "json_object" }
+        })
+      });
+
+      const data = await response.json();
+      const raw = data.choices[0].message.content;
+      const parsed = JSON.parse(raw);
+      setResult({ ...parsed, engine: 'AI Cloud (DeepSeek)' });
+      setScreen('result');
+    } catch (err: any) {
+      console.error("DeepSeek Error:", err);
+      throw err;
+    }
+  };
+
+  /**
+   * Unified AI Analysis Engine
+   */
+  const startAIAnalysis = async (text: string, base64Image?: string) => {
+    setIsAnalyzing(true);
+    setError(null);
+
+    try {
+      if (apiProvider === 'deepseek' && !base64Image) {
+        await analyzeWithDeepSeek(text);
+      } else {
+        // Fallback to Gemini for Image Vision or if Gemini is selected
+        await analyzeWithGemini(text, base64Image);
+      }
+    } catch (err: any) {
+      console.error("Master Engine Error:", err);
+      // Fallback already happens inside analyzeWithGemini, 
+      // but if DeepSeek failed and it was manual text, let's try local.
+      if (!base64Image) {
+        const local = performLocalAnalysis(text || "Emergency Scan");
+        setResult(local);
+        setScreen('result');
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  /**
    * Local Intelligence Fallback
    */
   const performLocalAnalysis = (text: string): AnalysisResult => {
-    const tokens = text.toLowerCase().split(/[,.\s\n]+/);
     const detected: IngredientDetail[] = [];
     let score = 100;
     let counts = { preservatives: 0, sugars: 0, colors: 0, others: 0 };
@@ -175,7 +226,7 @@ const App: React.FC = () => {
 
   const handleManualSubmit = () => {
     if (!manualText.trim()) return;
-    analyzeWithGemini(manualText);
+    startAIAnalysis(manualText);
   };
 
   const reset = () => {
@@ -211,7 +262,7 @@ const App: React.FC = () => {
                  const file = e.target.files?.[0];
                  if (file) {
                    const reader = new FileReader();
-                   reader.onloadend = () => analyzeWithGemini("", reader.result as string);
+                   reader.onloadend = () => startAIAnalysis("", reader.result as string);
                    reader.readAsDataURL(file);
                  }
                }} accept="image/*" />
@@ -255,9 +306,25 @@ const App: React.FC = () => {
                 <button onClick={reset} style={{ background: 'none', border: 'none' }}><X size={24}/></button>
              </header>
              <div className="card">
-                <p style={{ fontSize: '0.9rem', marginBottom: '1rem' }}><strong>Gemini AI Key</strong> (Cloud Engine)</p>
-                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }} />
-                <button className="btn-minimal" style={{ width: '100%', marginTop: '1rem', background: 'var(--primary)' }} onClick={() => { localStorage.setItem('GEMINI_API_KEY', apiKey); reset(); }}>Save Key</button>
+                <p style={{ fontSize: '0.9rem', marginBottom: '1rem' }}><strong>Intelligence Provider</strong></p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                   <button onClick={() => { setApiProvider('gemini'); localStorage.setItem('API_PROVIDER', 'gemini'); }} style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', border: '1px solid var(--border)', background: apiProvider === 'gemini' ? 'var(--primary-light)' : 'white', color: apiProvider === 'gemini' ? 'var(--primary)' : 'inherit', fontWeight: 700 }}>Gemini</button>
+                   <button onClick={() => { setApiProvider('deepseek'); localStorage.setItem('API_PROVIDER', 'deepseek'); }} style={{ flex: 1, padding: '0.8rem', borderRadius: '12px', border: '1px solid var(--border)', background: apiProvider === 'deepseek' ? 'var(--primary-light)' : 'white', color: apiProvider === 'deepseek' ? 'var(--primary)' : 'inherit', fontWeight: 700 }}>DeepSeek</button>
+                </div>
+
+                {apiProvider === 'gemini' ? (
+                  <>
+                    <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>Gemini API Key</p>
+                    <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }} />
+                    <button className="btn-minimal" style={{ width: '100%', marginTop: '1rem', background: 'var(--primary)' }} onClick={() => { localStorage.setItem('GEMINI_API_KEY', apiKey); reset(); }}>Save Gemini Key</button>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>DeepSeek API Key</p>
+                    <input type="password" value={deepseekKey} onChange={(e) => setDeepseekKey(e.target.value)} style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }} />
+                    <button className="btn-minimal" style={{ width: '100%', marginTop: '1rem', background: 'var(--primary)' }} onClick={() => { localStorage.setItem('DEEPSEEK_API_KEY', deepseekKey); reset(); }}>Save DeepSeek Key</button>
+                  </>
+                )}
              </div>
           </motion.div>
         ) : screen === 'result' && result ? (
