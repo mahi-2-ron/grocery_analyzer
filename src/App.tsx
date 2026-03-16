@@ -10,7 +10,8 @@ import {
   Loader2,
   RotateCcw,
   Key,
-  Cpu
+  Cpu,
+  AlertTriangle
 } from 'lucide-react';
 
 // --- Types ---
@@ -116,17 +117,37 @@ const App: React.FC = () => {
       body: JSON.stringify({
         model: "deepseek-chat",
         messages: [
-          { role: "system", content: "You are a professional nutritionist. Return a JSON object with productName, score, detectedIngredients: [{name, category, risk, description, impact, usedFor, dailyLimit}], recommendation, alternatives: [], stats: {preservatives, sugars, colors, others}." },
-          { role: "user", content: `Analyze: ${text}` }
+          { 
+            role: "system", 
+            content: "You are a professional nutritionist. You MUST return a valid JSON object. STRUCTURE: { \"productName\": \"string\", \"score\": number, \"detectedIngredients\": [{ \"name\": \"string\", \"category\": \"string\", \"risk\": \"Low | Moderate | High\", \"description\": \"string\", \"impact\": \"string\", \"usedFor\": \"string\", \"dailyLimit\": \"string\" }], \"recommendation\": \"string\", \"alternatives\": [\"string\"], \"stats\": { \"preservatives\": number, \"sugars\": number, \"colors\": number, \"others\": number } }" 
+          },
+          { role: "user", content: `Analyze these ingredients and return the report in JSON format: ${text}` }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0.1
       })
     });
 
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`DeepSeek API Error (${response.status}): ${errorData.error?.message || response.statusText}`);
+    }
+
     const data = await response.json();
-    if (!data.choices) throw new Error("DeepSeek API Failure: " + (data.error?.message || "Unknown error"));
-    const parsed = JSON.parse(data.choices[0].message.content);
-    return { ...parsed, engine: 'DeepSeek AI' };
+    if (!data.choices || data.choices.length === 0) throw new Error("DeepSeek returned an empty response.");
+    
+    const content = data.choices[0].message.content;
+    try {
+      const parsed = JSON.parse(content);
+      return { ...parsed, engine: 'DeepSeek AI' };
+    } catch (parseErr) {
+      // Fallback: try to find JSON in the string if it's not pure
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+         return { ...JSON.parse(jsonMatch[0]), engine: 'DeepSeek AI' };
+      }
+      throw new Error("DeepSeek returned invalid JSON format.");
+    }
   };
 
   /**
@@ -167,8 +188,9 @@ const App: React.FC = () => {
       if (apiProvider === 'deepseek' && !base64Image) {
         try {
           finalResult = await analyzeWithDeepSeek(text);
-        } catch (e) {
-          console.error("DeepSeek Failed, trying Gemini fallback...", e);
+        } catch (e: any) {
+          console.error("DeepSeek Failed:", e);
+          setError("DeepSeek Error: " + e.message + ". Trying Gemini fallback...");
         }
       }
 
