@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Tesseract from 'tesseract.js';
 import { 
   Camera, 
   ChevronLeft, 
@@ -141,7 +142,6 @@ const App: React.FC = () => {
       const parsed = JSON.parse(content);
       return { ...parsed, engine: 'DeepSeek AI' };
     } catch (parseErr) {
-      // Fallback: try to find JSON in the string if it's not pure
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
          return { ...JSON.parse(jsonMatch[0]), engine: 'DeepSeek AI' };
@@ -151,67 +151,102 @@ const App: React.FC = () => {
   };
 
   /**
-   * Gemini Vision Engine
+   * Gemini Intelligence Engine
    */
   const analyzeWithGemini = async (text: string, base64Image?: string) => {
     if (!geminiKey) throw new Error("Missing Gemini Key");
     const genAI = new GoogleGenerativeAI(geminiKey.trim());
     
-    // Attempt standard model
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `Analyze: ${text || 'image'}. Return JSON with productName, score, detectedIngredients (as list of detail objects), recommendation, alternatives, stats.`;
+    const models = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-pro"];
+    let lastErr = null;
 
-    let result;
-    if (base64Image) {
-      result = await model.generateContent([prompt, { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } }]);
-    } else {
-      result = await model.generateContent([prompt]);
+    for (const m of models) {
+      try {
+        console.log(`Auditing via: ${m}...`);
+        const model = genAI.getGenerativeModel({ model: m });
+        const prompt = `Analyze products/ingredients. Return ONLY JSON: {productName, score, detectedIngredients: [{name, category, risk, description, impact, usedFor, dailyLimit}], recommendation, alternatives: [], stats: {preservatives, sugars, colors, others}}`;
+
+        let result;
+        if (base64Image) {
+          result = await model.generateContent([prompt, { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } }]);
+        } else {
+          result = await model.generateContent([prompt, `Ingredients: ${text}`]);
+        }
+
+        const response = await result.response;
+        const textResponse = response.text();
+        const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) return { ...JSON.parse(jsonMatch[0]), engine: 'Gemini AI' };
+      } catch (e) {
+        lastErr = e;
+        console.warn(`${m} Failed:`, e);
+      }
     }
-
-    const response = await result.response;
-    const jsonMatch = response.text().match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Invalid AI Format");
-    return { ...JSON.parse(jsonMatch[0]), engine: 'Gemini AI' };
+    throw lastErr || new Error("All Gemini models failed.");
   };
 
   /**
-   * Unified Bio-Audit Pipeline (Master Controller)
+   * Emergency OCR System
+   */
+  const performEmergencyOCR = async (base64: string) => {
+    try {
+      const { data: { text } } = await Tesseract.recognize(base64, 'eng');
+      return text;
+    } catch (e) {
+      console.error("OCR Failed:", e);
+      return null;
+    }
+  };
+
+  /**
+   * Master Audit Pipeline
    */
   const startAudit = async (text: string, base64Image?: string) => {
     setIsAnalyzing(true);
     setError(null);
 
     try {
-      let finalResult = null;
+      let finalResult: AnalysisResult | null = null;
 
-      // 1. Try DeepSeek if selected and no image
+      // 1. Try Selected AI (DeepSeek for direct text)
       if (apiProvider === 'deepseek' && !base64Image) {
         try {
           finalResult = await analyzeWithDeepSeek(text);
         } catch (e: any) {
-          console.error("DeepSeek Failed:", e);
-          setError("DeepSeek Error: " + e.message + ". Trying Gemini fallback...");
+          console.error("DeepSeek Failed, trying Gemini...", e);
         }
       }
 
-      // 2. Try Gemini if DeepSeek skipped or failed
+      // 2. Try Gemini (Vision or Text fallback)
       if (!finalResult) {
         try {
           finalResult = await analyzeWithGemini(text, base64Image);
-        } catch (e) {
-          console.error("Gemini Failed (404/Other), using Local Fallback...", e);
+        } catch (e: any) {
+          console.error("Gemini Failure...", e);
+          
+          // 3. IMAGE EMERGENCY: OCR + DeepSeek
+          if (base64Image) {
+            const ocrText = await performEmergencyOCR(base64Image);
+            if (ocrText && ocrText.trim().length > 10) {
+              try {
+                finalResult = await analyzeWithDeepSeek(ocrText);
+              } catch (dsErr) {
+                console.error("DeepSeek OCR analysis failed:", dsErr);
+              }
+            }
+          }
         }
       }
 
-      // 3. Absolute Fallback: Local Intel
+      // 4. Absolute Fallback: Local Intel
       if (!finalResult) {
-        finalResult = performLocalAnalysis(text || "Visual Scan Data");
+        finalResult = performLocalAnalysis(text || "Biological Audit Data");
       }
 
       setResult(finalResult);
       setScreen('result');
     } catch (err: any) {
-      setError("Audit Interrupted: " + err.message);
+      setError("Audit Interrupted: " + (err.message || "Unknown error"));
     } finally {
       setIsAnalyzing(false);
     }
@@ -238,7 +273,7 @@ const App: React.FC = () => {
              <header style={{ marginTop: '2rem', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between' }}>
                 <div>
                   <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--text)' }}>PureScan</h1>
-                  <p style={{ color: 'var(--text-soft)' }}>Bio-Integrity Pipeline v3.6</p>
+                  <p style={{ color: 'var(--text-soft)' }}>Bio-Integrity Pipeline v3.7</p>
                 </div>
                 <button onClick={() => setScreen('settings')} style={{ background: '#f1f5f9', border: 'none', padding: '1rem', borderRadius: '16px' }}><Key size={20}/></button>
              </header>
@@ -358,7 +393,6 @@ const App: React.FC = () => {
         ) : null}
       </AnimatePresence>
 
-      {/* Popups */}
       <AnimatePresence>
         {activeIng && (
           <motion.div key="popup" className="slide-up" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--surface)', padding: '2rem', borderTopLeftRadius: '32px', borderTopRightRadius: '32px' }}>
@@ -376,7 +410,7 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <footer style={{ textAlign: 'center', padding: '2rem 1.5rem 6rem', fontSize: '0.7rem', color: 'var(--text-soft)', marginTop: '2rem' }}>
-        <p>PureScan AI Hub v3.6 (Hybrid Mode)</p>
+        <p>PureScan AI Hub v3.7 (Hybrid Mode)</p>
         <p>Made by <a href="https://maheshmadiwalar18.netlify.app/" style={{ color: 'var(--primary)', fontWeight: 800 }}>Mahesh Madiwalar</a></p>
       </footer>
     </div>
