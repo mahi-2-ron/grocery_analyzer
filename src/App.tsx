@@ -91,7 +91,7 @@ const App: React.FC = () => {
     setError(null);
 
     const performAiCall = async (modelName: string) => {
-      const genAI = new GoogleGenerativeAI(apiKey);
+      const genAI = new GoogleGenerativeAI(apiKey.trim());
       const model = genAI.getGenerativeModel({ model: modelName });
 
       const prompt = `
@@ -105,7 +105,7 @@ const App: React.FC = () => {
         4. Provide Biological Impact for controversial ingredients
         5. Suggest 2-3 healthier alternatives
         
-        RETURN ONLY A PURE JSON OBJECT (NO MARKDOWN BLOCKS):
+        RETURN ONLY A PURE JSON OBJECT:
         {
           "productName": "string",
           "score": number,
@@ -139,30 +139,39 @@ const App: React.FC = () => {
     };
 
     try {
-      let response;
-      try {
-        // Try Flash first (faster, cheaper)
-        response = await performAiCall("gemini-1.5-flash");
-      } catch (flashErr: any) {
-        console.warn("Flash model failed, trying Pro fallback...", flashErr);
-        if (flashErr.message?.includes("404") || flashErr.message?.includes("not found")) {
-          // Fallback to Pro
-          response = await performAiCall("gemini-1.5-pro");
-        } else {
-          throw flashErr;
+      const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro", "gemini-1.5-pro-latest", "gemini-pro"];
+      let response = null;
+      let lastError = null;
+
+      for (const modelName of modelsToTry) {
+        try {
+          console.log(`Attempting analysis with: ${modelName}`);
+          response = await performAiCall(modelName);
+          if (response) break;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`${modelName} failed:`, err.message);
+          if (err.message?.includes("403") || err.message?.includes("API_KEY_INVALID")) {
+            throw new Error("Invalid API Key. Please update it in settings.");
+          }
+          continue; // Try next model
         }
+      }
+
+      if (!response) {
+        throw lastError || new Error("All AI models are currently unavailable in your region.");
       }
 
       const responseText = response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI failed to generate a valid nutritional report. Please try again with a clearer list.");
+      if (!jsonMatch) throw new Error("AI failed to generate a valid report. Try a clearer image.");
 
       const parsed = JSON.parse(jsonMatch[0]) as AnalysisResult;
       setResult(parsed);
       setScreen('result');
     } catch (err: any) {
-      console.error("Critical Analysis Error:", err);
-      setError(`Lab Error: ${err.message || 'The AI is currently busy. Please try manual entry.'}`);
+      console.error("Deep Lab Error:", err);
+      setError(`Analysis Failed: ${err.message || 'Check your internet or API key settings.'}`);
     } finally {
       setIsAnalyzing(false);
     }
