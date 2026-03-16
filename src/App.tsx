@@ -55,8 +55,8 @@ const App: React.FC = () => {
     return saved;
   };
 
-  const [apiProvider, setApiProvider] = useState<'gemini' | 'deepseek'>(localStorage.getItem('API_PROVIDER') as any || 'gemini');
-  const [deepseekKey, setDeepseekKey] = useState<string>(localStorage.getItem('DEEPSEEK_API_KEY') || '');
+  const [apiProvider, setApiProvider] = useState<'gemini' | 'deepseek'>(localStorage.getItem('API_PROVIDER') as any || 'deepseek');
+  const [deepseekKey, setDeepseekKey] = useState<string>(localStorage.getItem('DEEPSEEK_API_KEY') || 'sk-50eb81dcd5e44eb79254963757aa04f7');
   const [screen, setScreen] = useState<'home' | 'manual' | 'result' | 'settings'>('home');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [apiKey, setApiKey] = useState<string>(getDefaultKey());
