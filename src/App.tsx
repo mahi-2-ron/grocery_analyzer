@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import Tesseract from 'tesseract.js';
 import { 
   Camera, 
@@ -70,8 +69,8 @@ const LOCAL_DB: Record<string, any> = {
 
 const App: React.FC = () => {
   const [apiProvider, setApiProvider] = useState<'gemini' | 'deepseek'>(localStorage.getItem('API_PROVIDER') as any || 'deepseek');
-  const [deepseekKey, setDeepseekKey] = useState<string>(localStorage.getItem('DEEPSEEK_API_KEY') || 'sk-50eb81dcd5e44eb79254963757aa04f7');
-  const [geminiKey, setGeminiKey] = useState<string>(localStorage.getItem('GEMINI_API_KEY') || 'AIzaSyBItLUxARnmvTJf5E6agjlFVQoFIBRXbw0');
+  const [deepseekKey, setDeepseekKey] = useState<string>(localStorage.getItem('DEEPSEEK_API_KEY') || (import.meta as any).env?.VITE_DEEPSEEK_API_KEY || '');
+  const [geminiKey, setGeminiKey] = useState<string>(localStorage.getItem('GEMINI_API_KEY') || (import.meta as any).env?.VITE_GEMINI_API_KEY || '');
   
   const [screen, setScreen] = useState<'home' | 'manual' | 'result' | 'settings'>('home');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -139,24 +138,60 @@ const App: React.FC = () => {
    * Gemini Cloud Engine (Secondary Hybrid)
    */
   const analyzeWithGemini = async (text: string, base64Image?: string) => {
-    const genAI = new GoogleGenerativeAI(geminiKey.trim());
-    const models = ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro"];
+    if (!geminiKey.trim()) throw new Error("Gemini API key missing. Add it in Settings or set VITE_GEMINI_API_KEY.");
+
+    const callGemini = async (model: string) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(geminiKey.trim())}`;
+      const prompt = "Analyze food components. Return ONLY JSON structure: productName, score, detectedIngredients, recommendation, alternatives, stats.";
+      const contents = base64Image
+        ? [{
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inline_data: {
+                  data: base64Image.split(',')[1],
+                  mime_type: "image/jpeg",
+                },
+              },
+            ],
+          }]
+        : [{ role: "user", parts: [{ text: `${prompt}\n\n${text}` }] }];
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents }),
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        throw new Error(`Gemini HTTP ${response.status}: ${raw.slice(0, 500)}`);
+      }
+
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(`Gemini invalid JSON response: ${raw.slice(0, 500)}`);
+      }
+
+      const candidateText = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("\n") || "";
+      return candidateText;
+    };
+
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro", "gemini-pro"];
     let lastErr;
 
     for (const m of models) {
       try {
-        const model = genAI.getGenerativeModel({ model: m });
-        const prompt = "Analyze food components. Return ONLY JSON structure: productName, score, detectedIngredients, recommendation, alternatives, stats.";
-        const result = base64Image 
-          ? await model.generateContent([prompt, { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } }])
-          : await model.generateContent([prompt, text]);
-        
-        const textRes = (await result.response).text();
+        const textRes = await callGemini(m);
         const jsonMatch = textRes.match(/\{[\s\S]*\}/);
         if (jsonMatch) return { ...JSON.parse(jsonMatch[0]), engine: 'Gemini AI' };
+        throw new Error("Gemini response did not contain JSON object.");
       } catch (e) {
         lastErr = e;
-        console.warn(`Gemini model ${m} failed in this region.`);
+        console.warn(`Gemini model ${m} request failed.`, e);
       }
     }
     throw lastErr;
@@ -286,7 +321,12 @@ const App: React.FC = () => {
                   <button onClick={() => setApiProvider('deepseek')} style={{ flex: 1, padding: '1rem', background: apiProvider === 'deepseek' ? 'var(--primary-light)' : '#fff' }}>DeepSeek</button>
                 </div>
                 <input type="password" value={apiProvider === 'gemini' ? geminiKey : deepseekKey} onChange={(e) => apiProvider === 'gemini' ? setGeminiKey(e.target.value) : setDeepseekKey(e.target.value)} style={{ width: '100%', padding: '1rem', marginBottom: '1rem' }} />
-                <button className="btn-minimal" style={{ width: '100%', background: 'var(--primary)' }} onClick={() => reset()}>Save Configuration</button>
+                <button className="btn-minimal" style={{ width: '100%', background: 'var(--primary)' }} onClick={() => {
+                  localStorage.setItem('API_PROVIDER', apiProvider);
+                  localStorage.setItem('GEMINI_API_KEY', geminiKey);
+                  localStorage.setItem('DEEPSEEK_API_KEY', deepseekKey);
+                  reset();
+                }}>Save Configuration</button>
              </div>
           </motion.div>
         ) : screen === 'result' && result ? (
