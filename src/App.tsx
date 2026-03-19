@@ -261,31 +261,38 @@ const App: React.FC = () => {
     <div className="mobile-app-container">
       <AnimatePresence mode="wait">
         {isAnalyzing ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="safe-area" style={{ textAlign: 'center', paddingTop: '8rem' }}>
-            <Loader2 size={80} color="var(--primary)" className="animate-spin" style={{ margin: '0 auto 2rem' }} />
-            <h2>System Auditing...</h2>
-            <p style={{ opacity: 0.6 }}>Cloud + Local Intelligence Active</p>
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="safe-area" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <Loader2 size={64} className="animate-spin" style={{ color: 'var(--primary)', marginBottom: '2rem' }} />
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Neural Auditing...</h2>
+            <p style={{ color: 'var(--text-soft)', marginTop: '0.5rem' }}>Cloud + Local Intelligence Active</p>
           </motion.div>
         ) : screen === 'home' ? (
           <motion.div key="home" className="safe-area" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-             <header style={{ marginTop: '2rem', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between' }}>
+             <header>
                 <div>
-                  <h1 style={{ fontSize: '2.4rem', fontWeight: 800 }}>PureScan</h1>
-                  <p style={{ opacity: 0.6 }}>Multi-Model Bio Pipeline v3.8</p>
+                  <h1 className="logo-text">PureScan</h1>
+                  <div className="status-bar">
+                    <div className="status-dot" />
+                    <span>Bio Pipeline v3.9 Online</span>
+                  </div>
                 </div>
-                <button onClick={() => setScreen('settings')} style={{ background: '#f1f5f9', border: 'none', padding: '1rem', borderRadius: '16px' }}><Key size={20}/></button>
+                <button onClick={() => setScreen('settings')} className="btn-ghost" style={{ padding: '0.75rem', borderRadius: '14px' }}>
+                  <Key size={20}/>
+                </button>
              </header>
 
              {error && (
-               <div className="card" style={{ background: '#fff1f2', color: 'var(--danger)', marginBottom: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-                 <AlertTriangle size={16} /> <span>{error}</span>
+               <div className="card" style={{ borderColor: 'rgba(244, 63, 94, 0.3)', background: 'rgba(244, 63, 94, 0.05)', color: '#fb7185', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                 <AlertTriangle size={18} /> <span style={{ fontSize: '0.85rem' }}>{error}</span>
                </div>
              )}
 
-             <div className="card" onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--primary-light)', border: '2px dashed var(--primary)', padding: '2.5rem', textAlign: 'center' }}>
-               <Camera size={48} color="var(--primary)" style={{ marginBottom: '1rem' }} />
-               <h3 style={{ fontWeight: 800 }}>Vision Audit</h3>
-               <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Auto-switch: Gemini / OCR + DeepSeek</p>
+             <div className="card card-primary" onClick={() => fileInputRef.current?.click()}>
+               <div className="card-icon-container">
+                 <Camera size={28} style={{ color: 'var(--primary)' }} />
+               </div>
+               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>Vision Audit</h3>
+               <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Multi-model AI analysis via image capture</p>
                <input type="file" ref={fileInputRef} hidden onChange={(e) => {
                  const file = e.target.files?.[0];
                  if (file) {
@@ -296,81 +303,147 @@ const App: React.FC = () => {
                }} accept="image/*" />
             </div>
 
-            <div className="card" onClick={() => setScreen('manual')} style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-               <FileText size={24} color="var(--primary)" />
-               <div style={{ flex: 1 }}>
-                 <h4 style={{ fontWeight: 700 }}>Ingredient Text</h4>
-                 <p style={{ fontSize: '0.75rem', opacity: 0.6 }}>Direct Intelligence Audit</p>
+            <div className="card" onClick={() => setScreen('manual')} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+               <div className="card-icon-container" style={{ marginBottom: 0 }}>
+                 <FileText size={24} style={{ color: 'var(--secondary)' }} />
                </div>
-               <ChevronRight size={20} style={{ opacity: 0.3 }} />
+               <div style={{ flex: 1 }}>
+                 <h4 style={{ fontWeight: 600 }}>Text Intelligence</h4>
+                 <p style={{ fontSize: '0.8rem', color: 'var(--text-soft)' }}>Direct ingredient string audit</p>
+               </div>
+               <ChevronRight size={20} style={{ color: 'var(--text-soft)' }} />
             </div>
           </motion.div>
         ) : screen === 'manual' ? (
-          <motion.div key="manual" className="safe-area" initial={{ x: 20 }} animate={{ x: 0 }}>
-             <header className="screen-header"><button onClick={reset}><ChevronLeft/></button><h2>Audit Text</h2></header>
-             <textarea value={manualText} onChange={(e) => setManualText(e.target.value)} placeholder="Paste ingredients..." style={{ width: '100%', height: '300px', borderRadius: '24px', padding: '1.5rem' }} />
-             <button className="btn-minimal" style={{ width: '100%', marginTop: '1.5rem', background: 'var(--primary)' }} onClick={() => startAudit(manualText)}>Neural Analysis</button>
+          <motion.div key="manual" className="safe-area" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
+             <header style={{ marginBottom: '2rem' }}>
+               <button onClick={reset} className="btn-ghost" style={{ padding: '0.5rem', borderRadius: '12px' }}><ChevronLeft size={24}/></button>
+               <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Ingredient Audit</h2>
+               <div style={{ width: 40 }} />
+             </header>
+             <textarea 
+               value={manualText} 
+               onChange={(e) => setManualText(e.target.value)} 
+               placeholder="Paste ingredient list here..." 
+               style={{ width: '100%', height: '280px', borderRadius: '20px', padding: '1.5rem', marginBottom: '1.5rem' }} 
+             />
+             <button className="btn-minimal btn-primary" onClick={() => startAudit(manualText)}>
+               <Cpu size={20} /> Start Neural Scan
+             </button>
           </motion.div>
         ) : screen === 'settings' ? (
-          <motion.div key="settings" className="safe-area">
-             <header className="screen-header"><h2>Config Panel</h2><button onClick={reset}><X/></button></header>
+          <motion.div key="settings" className="safe-area" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+             <header style={{ marginBottom: '2rem' }}>
+               <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Config Panel</h2>
+               <button onClick={reset} className="btn-ghost" style={{ padding: '0.5rem', borderRadius: '12px' }}><X size={24}/></button>
+             </header>
              <div className="card">
-                <p style={{ fontWeight: 700, marginBottom: '1rem' }}>Provider</p>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                  <button onClick={() => setApiProvider('gemini')} style={{ flex: 1, padding: '1rem', background: apiProvider === 'gemini' ? 'var(--primary-light)' : '#fff' }}>Gemini</button>
-                  <button onClick={() => setApiProvider('deepseek')} style={{ flex: 1, padding: '1rem', background: apiProvider === 'deepseek' ? 'var(--primary-light)' : '#fff' }}>DeepSeek</button>
+                <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '1rem' }}>Select Intelligence Provider</p>
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                  <button onClick={() => setApiProvider('gemini')} className={apiProvider === 'gemini' ? 'btn-minimal btn-primary' : 'btn-minimal btn-ghost'} style={{ flex: 1, padding: '0.75rem' }}>Gemini</button>
+                  <button onClick={() => setApiProvider('deepseek')} className={apiProvider === 'deepseek' ? 'btn-minimal btn-primary' : 'btn-minimal btn-ghost'} style={{ flex: 1, padding: '0.75rem' }}>DeepSeek</button>
                 </div>
-                <input type="password" value={apiProvider === 'gemini' ? geminiKey : deepseekKey} onChange={(e) => apiProvider === 'gemini' ? setGeminiKey(e.target.value) : setDeepseekKey(e.target.value)} style={{ width: '100%', padding: '1rem', marginBottom: '1rem' }} />
-                <button className="btn-minimal" style={{ width: '100%', background: 'var(--primary)' }} onClick={() => {
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-soft)', marginBottom: '0.5rem' }}>API Key Certification</p>
+                <input 
+                  type="password" 
+                  value={apiProvider === 'gemini' ? geminiKey : deepseekKey} 
+                  onChange={(e) => apiProvider === 'gemini' ? setGeminiKey(e.target.value) : setDeepseekKey(e.target.value)} 
+                  style={{ width: '100%', padding: '1rem', marginBottom: '1.5rem' }} 
+                  placeholder={`Enter ${apiProvider} Key`}
+                />
+                <button className="btn-minimal btn-primary" onClick={() => {
                   localStorage.setItem('API_PROVIDER', apiProvider);
                   localStorage.setItem('GEMINI_API_KEY', geminiKey);
                   localStorage.setItem('DEEPSEEK_API_KEY', deepseekKey);
                   reset();
-                }}>Save Configuration</button>
+                }}>Save & Initialize</button>
              </div>
           </motion.div>
         ) : screen === 'result' && result ? (
-          <motion.div key="result" className="safe-area">
-             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <button onClick={reset}><RotateCcw/></button>
+          <motion.div key="result" className="safe-area" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+             <header style={{ marginBottom: '1rem' }}>
+                <button onClick={reset} className="btn-ghost" style={{ padding: '0.5rem', borderRadius: '12px' }}><RotateCcw size={20}/></button>
                 <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: '0.6rem', color: 'var(--primary)', fontWeight: 800 }}>{result.engine.toUpperCase()}</p>
-                  <h3 style={{ fontWeight: 800 }}>Audit Report</h3>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 800, letterSpacing: '0.1em' }}>{result.engine.toUpperCase()} AUDIT</span>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Scan Report</h3>
                 </div>
                 <div style={{ width: 40 }} />
              </header>
-             <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-                <h1 style={{ fontSize: '4.5rem', fontWeight: 900 }}>{result.score}</h1>
-                <p style={{ opacity: 0.5 }}>HEALTH SCORE</p>
+
+             <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', marginTop: '1rem' }}>
+                <div className="score-display">{result.score}</div>
+                <p style={{ color: 'var(--text-dim)', fontWeight: 600, fontSize: '0.9rem', letterSpacing: '0.1em' }}>HEALTH INTEGRITY SCORE</p>
              </div>
-             <div className="card" style={{ background: 'var(--secondary)', color: '#fff' }}><p>{result.recommendation}</p></div>
+
+             <div className="card" style={{ background: 'linear-gradient(135deg, var(--surface) 0%, #000 100%)', borderLeft: `4px solid ${result.score > 70 ? 'var(--primary)' : 'var(--accent)'}` }}>
+               <p style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontStyle: 'italic' }}>"{result.recommendation}"</p>
+             </div>
+
              <div style={{ marginTop: '2rem' }}>
+                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-soft)', fontWeight: 700, marginBottom: '1rem', textTransform: 'uppercase' }}>Detected Components</h4>
                 {result.detectedIngredients.map((ing, i) => (
                    <div key={i} className="ingredient-row" onClick={() => setActiveIng(ing)}>
-                      <div style={{ flex: 1 }}><p style={{ fontWeight: 800 }}>{ing.name}</p><p style={{ fontSize: '0.7rem', opacity: 0.5 }}>{ing.category}</p></div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: 700, color: 'var(--text-main)' }}>{ing.name}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-soft)' }}>{ing.category}</p>
+                      </div>
                       <span className={`badge badge-${ing.risk.toLowerCase()}`}>{ing.risk}</span>
                    </div>
                 ))}
              </div>
-             <button onClick={reset} className="btn-minimal" style={{ width: '100%', padding: '1.5rem', background: 'var(--secondary)', marginTop: '2rem', marginBottom: '4rem' }}>New Scan</button>
+
+             <button onClick={reset} className="btn-minimal btn-primary" style={{ marginTop: '2.5rem', marginBottom: '4rem' }}>
+               Run New Audit
+             </button>
           </motion.div>
         ) : null}
       </AnimatePresence>
+
       <AnimatePresence>
         {activeIng && (
-          <motion.div key="popup" className="slide-up" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--surface)', padding: '2rem', borderRadius: '32px 32px 0 0' }}>
-             <div style={{ height: 4, width: 40, background: 'var(--border)', margin: '0 auto 2rem' }} />
-             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <h2 style={{ fontWeight: 800 }}>{activeIng.name}</h2>
-                <button onClick={() => setActiveIng(null)}><X/></button>
+          <motion.div 
+            key="popup" 
+            className="slide-up" 
+            initial={{ y: '100%' }} 
+            animate={{ y: 0 }} 
+            exit={{ y: '100%' }} 
+            style={{ position: 'fixed', inset: 0, zIndex: 1000, padding: '2rem', borderRadius: '32px 32px 0 0', display: 'flex', flexDirection: 'column' }}
+          >
+             <div style={{ height: 4, width: 40, background: 'var(--border)', margin: '0 auto 2rem', borderRadius: '2px' }} />
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>{activeIng.name}</h2>
+                  <span className={`badge badge-${activeIng.risk.toLowerCase()}`} style={{ marginTop: '0.5rem', display: 'inline-block' }}>{activeIng.risk} RISK</span>
+                </div>
+                <button onClick={() => setActiveIng(null)} className="btn-ghost" style={{ padding: '0.5rem', borderRadius: '50%' }}><X/></button>
              </div>
-             <p style={{ marginTop: '1rem', opacity: 0.8 }}>{activeIng.description}</p>
-             <div className="card" style={{ marginTop: '1.5rem', background: '#fff1f2', color: 'var(--danger)' }}><p>{activeIng.impact}</p></div>
+             
+             <div style={{ marginTop: '2rem', flex: 1 }}>
+                <p style={{ color: 'var(--text-dim)', fontSize: '1.1rem' }}>{activeIng.description}</p>
+                
+                <div className="card" style={{ marginTop: '2rem', borderColor: 'rgba(244, 63, 94, 0.2)', background: 'rgba(244, 63, 94, 0.03)' }}>
+                  <h4 style={{ color: 'var(--accent)', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Biological Impact</h4>
+                  <p style={{ color: 'var(--text-main)' }}>{activeIng.impact}</p>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                   <div className="card" style={{ marginBottom: 0, padding: '1rem' }}>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-soft)', textTransform: 'uppercase' }}>Daily Limit</p>
+                      <p style={{ fontWeight: 700 }}>{activeIng.dailyLimit}</p>
+                   </div>
+                   <div className="card" style={{ marginBottom: 0, padding: '1rem' }}>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--text-soft)', textTransform: 'uppercase' }}>Usage</p>
+                      <p style={{ fontWeight: 700 }}>{activeIng.usedFor}</p>
+                   </div>
+                </div>
+             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      <footer style={{ textAlign: 'center', padding: '4rem 1.5rem', fontSize: '0.7rem', opacity: 0.5 }}>
-        <p>PureScan AI v3.8 | Mahesh Madiwalar</p>
+
+      <footer>
+        <p style={{ fontWeight: 600, color: 'var(--text-dim)' }}>PureScan Neural Audit v3.9</p>
+        <p style={{ marginTop: '0.25rem' }}>Powered by Gemini & DeepSeek Intelligence</p>
       </footer>
     </div>
   );
